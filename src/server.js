@@ -4,7 +4,7 @@ const port = 3000;
 
 // Define a simple route
 app.get("/", (req, res) => {
-  res.send("Hello, Bhakti!");
+  res.send("Hello, Vaishu Serdi kami zhali ka? Server ch folder banavun github la separate repo madhe push kr VRDevelopers vr.");
 });
 
 // Start the server
