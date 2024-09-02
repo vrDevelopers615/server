@@ -1,13 +1,27 @@
+// server.js
 const express = require("express");
 const http = require("http");
 const socketIo = require("socket.io");
+const cors = require("cors");
 
 const app = express();
 const server = http.createServer(app);
-const io = socketIo(server);
+const io = socketIo(server, {
+  cors: {
+    origin:
+      "https://66d5766942358dc85e36b151--lighthearted-sherbet-33c07d.netlify.app/", // Replace with your frontend URL
+    methods: ["GET", "POST"],
+  },
+});
 
-// Serve static files (e.g., from a build directory)
-app.use(express.static("build"));
+// Enable CORS for your frontend
+app.use(
+  cors({
+    origin:
+      "https://66d5766942358dc85e36b151--lighthearted-sherbet-33c07d.netlify.app/", // Replace with your Netlify URL
+    methods: ["GET", "POST"],
+  })
+);
 
 io.on("connection", (socket) => {
   console.log("New user connected:", socket.id);
@@ -16,32 +30,31 @@ io.on("connection", (socket) => {
     socket.join(roomID);
     console.log(`User ${socket.id} joined room ${roomID}`);
 
-    // Notify others in the room about the new user
     const users = Array.from(io.sockets.adapter.rooms.get(roomID) || []);
     io.to(roomID).emit(
       "all users",
       users.filter((user) => user !== socket.id)
     );
 
-    // Handle user leaving
+    socket.on("sending signal", (payload) => {
+      io.to(payload.userToSignal).emit("receiving returned signal", {
+        signal: payload.signal,
+        from: socket.id,
+      });
+    });
+
+    socket.on("returning signal", (payload) => {
+      io.to(payload.callerID).emit("receiving returned signal", {
+        signal: payload.signal,
+        from: socket.id,
+      });
+    });
+
     socket.on("disconnect", () => {
       console.log(`User ${socket.id} disconnected`);
       io.to(roomID).emit("user left", socket.id);
     });
   });
-
-  socket.on("sending signal", (payload) => {
-    console.log(`User ${socket.id} sending signal to ${payload.userToSignal}`);
-    io.to(payload.userToSignal).emit("receiving returned signal", {
-      signal: payload.signal,
-      from: socket.id,
-    });
-  });
-});
-
-// Serve index.html as the default file
-app.get("*", (req, res) => {
-  res.sendFile(__dirname + "/build/index.html");
 });
 
 const PORT = process.env.PORT || 8000;
