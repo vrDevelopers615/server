@@ -1,34 +1,50 @@
-// server/index.js
 const express = require("express");
 const http = require("http");
-const { Server } = require("socket.io");
+const socketIo = require("socket.io");
+
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = socketIo(server);
+
+// Serve static files (e.g., from a build directory)
+app.use(express.static("build"));
 
 io.on("connection", (socket) => {
-  socket.on("join-room", (roomId, userId) => {
-    socket.join(roomId);
-    socket.to(roomId).emit("user-connected", userId);
+  console.log("New user connected:", socket.id);
 
-    socket.on("sending-signal", (payload) => {
-      io.to(payload.userToSignal).emit("receiving-signal", {
-        signal: payload.signal,
-        callerID: payload.callerID,
-      });
-    });
+  socket.on("join room", (roomID) => {
+    socket.join(roomID);
+    console.log(`User ${socket.id} joined room ${roomID}`);
 
-    socket.on("returning-signal", (payload) => {
-      io.to(payload.callerID).emit("receiving-returned-signal", {
-        signal: payload.signal,
-        id: socket.id,
-      });
-    });
+    // Notify others in the room about the new user
+    const users = Array.from(io.sockets.adapter.rooms.get(roomID) || []);
+    io.to(roomID).emit(
+      "all users",
+      users.filter((user) => user !== socket.id)
+    );
 
+    // Handle user leaving
     socket.on("disconnect", () => {
-      socket.to(roomId).emit("user-disconnected", userId);
+      console.log(`User ${socket.id} disconnected`);
+      io.to(roomID).emit("user left", socket.id);
+    });
+  });
+
+  socket.on("sending signal", (payload) => {
+    console.log(`User ${socket.id} sending signal to ${payload.userToSignal}`);
+    io.to(payload.userToSignal).emit("receiving returned signal", {
+      signal: payload.signal,
+      from: socket.id,
     });
   });
 });
 
-server.listen(5000, () => console.log("Server is running on port 5000"));
+// Serve index.html as the default file
+app.get("*", (req, res) => {
+  res.sendFile(__dirname + "/build/index.html");
+});
+
+const PORT = process.env.PORT || 8000;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
